@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>JaalDrishti</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400..700&family=Inter:wght@400..700&family=JetBrains+Mono:wght@400..600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <script>
+        // Apply the saved theme before the page paints
+        try {
+            const theme = localStorage.getItem("jd-theme");
+            if (theme) document.documentElement.dataset.theme = theme;
+        } catch (e) {}
+    </script>
+</head>
+
+<body data-level="{{ analysis.level if analysis else 'idle' }}">
+
+<div class="backdrop" aria-hidden="true"></div>
+
+<!-- Top bar -->
+<header class="topbar">
+    <a class="brand" href="/">
+        <svg class="brand-icon" viewBox="0 0 48 48" aria-hidden="true">
+            <defs>
+                <linearGradient id="brand-grad" x1="0" y1="0" x2="1" y2="1">
+                    <stop offset="0" stop-color="#22D3EE"/>
+                    <stop offset=".5" stop-color="#A78BFA"/>
+                    <stop offset="1" stop-color="#F472B6"/>
+                </linearGradient>
+            </defs>
+            <path d="M24 4 7 10v12c0 10.5 7.2 19.4 17 22 9.8-2.6 17-11.5 17-22V10L24 4Z" fill="url(#brand-grad)"/>
+            <path d="M12 24c3.5-5 7.5-7.5 12-7.5S32.5 19 36 24c-3.5 5-7.5 7.5-12 7.5S15.5 29 12 24Z" fill="#070B1A"/>
+            <circle cx="24" cy="24" r="4.5" fill="#22D3EE"/>
+            <circle cx="24" cy="24" r="1.8" fill="#070B1A"/>
+        </svg>
+        <span class="brand-text">
+            <strong>Jaal<span>Drishti</span></strong>
+            <small>See the trap before you click</small>
+        </span>
+    </a>
+    <div class="topbar-right">
+        <span class="pill"><span class="dot"></span>Gemini · {{ model }}</span>
+        <button type="button" class="icon-btn" id="theme-toggle" aria-label="Toggle light and dark theme" title="Toggle theme">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a9 9 0 1 0 9 9 7 7 0 0 1-9-9Z"/></svg>
+        </button>
+    </div>
+</header>
+
+<!-- Hero -->
+<section class="hero">
+    <div class="hero-copy">
+        <span class="eyebrow">AI-Based Phishing Email Detection System</span>
+        <h1>See the <span class="grad-text">trap</span><br>before you click.</h1>
+        <p class="lead">
+            JaalDrishti combines a rule-based link scanner with Google Gemini to catch phishing emails,
+            explain every red flag, and tell you exactly who to call if you've been targeted.
+        </p>
+        <div class="hero-stats">
+            <div><strong>{{ runs }}&times;</strong><span>independent AI runs</span></div>
+            <div><strong>8</strong><span>attack types</span></div>
+            <div><strong>100%</strong><span>explainable</span></div>
+        </div>
+    </div>
+    <div class="hero-visual">
+        <div class="orb" aria-hidden="true"></div>
+        <canvas id="hero-canvas" aria-label="3D visual of an email protected by a shield"></canvas>
+        <div class="hero-status">
+            {% if analysis %}
+                {% if analysis.level == "phishing" %}Threat detected
+                {% elif analysis.level == "suspicious" %}Proceed with caution
+                {% else %}Email looks safe{% endif %}
+            {% else %}Shield ready{% endif %}
+        </div>
+    </div>
+</section>
+
+<main class="layout" id="workspace">
+
+    <!-- Input -->
+    <section class="card glow-border input-card">
+        <div class="card-head">
+            <h2>Scan an email</h2>
+            <span class="muted small" id="char-count"></span>
+        </div>
+
+        <div class="samples">
+            <span class="muted small">Try a sample:</span>
+            {% for sample in samples %}
+                <button type="button" class="chip sample" data-index="{{ loop.index0 }}">{{ sample.name }}</button>
+            {% endfor %}
+        </div>
+
+        <form id="analyze-form" action="/predict" method="POST">
+            <textarea
+                id="email"
+                name="email"
+                placeholder="Paste the suspicious email here..."
+                maxlength="20000"
+                required
+                {% if not analysis %}autofocus{% endif %}
+            >{{ email or "" }}</textarea>
+
+            <div class="actions">
+                <button type="button" class="btn ghost" id="paste-btn">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 4h6v3H9zM7 5H5v15h14V5h-2v4H7z"/></svg>
+                    Paste
+                </button>
+                <button type="button" class="btn ghost" id="clear-btn">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg>
+                    Clear &amp; new email
+                </button>
+                <button type="submit" class="btn primary" id="submit-btn">
+                    <span class="spinner" aria-hidden="true"></span>
+                    <span class="btn-label">Scan for phishing</span>
+                </button>
+            </div>
+        </form>
+    </section>
+
+    <!-- Results -->
+    <section class="results" id="results" aria-live="polite">
+
+        <!-- Shown while the scan runs -->
+        <div class="card scanning" id="scanning" hidden>
+            <h2>Scanning email…</h2>
+            <div class="scan-preview"><pre id="scan-text"></pre><span class="laser"></span></div>
+            <ol class="stepper" id="stepper">
+                <li>Extracting links</li>
+                <li>Checking domains with rule-based scanner</li>
+                <li>Gemini AI analysis &times; {{ runs }}</li>
+                <li>Building explainable report</li>
+            </ol>
+        </div>
+
+        <div id="results-content">
+
+        {% if error %}
+            <div class="card alert">⚠️ {{ error }}</div>
+        {% endif %}
+
+        {% if analysis %}
+            {% set level = analysis.level %}
+
+            <!-- Verdict -->
+            <div class="card verdict level-{{ level }}">
+                <div class="gauge" style="--s: {{ analysis.score }}">
+                    <svg viewBox="0 0 220 130" aria-hidden="true">
+                        <path class="zone zone-safe" d="M20 115 A90 90 0 0 1 200 115" pathLength="100"/>
+                        <path class="zone zone-warn" d="M20 115 A90 90 0 0 1 200 115" pathLength="100"/>
+                        <path class="zone zone-danger" d="M20 115 A90 90 0 0 1 200 115" pathLength="100"/>
+                        <path class="value-arc" d="M20 115 A90 90 0 0 1 200 115" pathLength="100"
+                              stroke-dasharray="{{ analysis.score }} 200"/>
+                        <g class="needle">
+                            <polygon points="107,115 113,115 110,38"/>
+                            <circle cx="110" cy="115" r="8"/>
+                        </g>
+                    </svg>
+                    <div class="gauge-readout">
+                        <strong><span class="count-up" data-value="{{ analysis.score }}">{{ analysis.score }}</span>%</strong>
+                        <span>phishing probability</span>
+                    </div>
+                </div>
+
+                <div class="verdict-body">
+                    {% if level == "phishing" %}
+                        <h2 class="verdict-title glitch" data-text="PHISHING DETECTED" tabindex="-1">PHISHING DETECTED</h2>
+                    {% elif level == "suspicious" %}
+                        <h2 class="verdict-title" tabindex="-1">⚠ SUSPICIOUS EMAIL</h2>
+                    {% else %}
+                        <h2 class="verdict-title" tabindex="-1">
+                            <svg class="check" viewBox="0 0 52 52" aria-hidden="true">
+                                <circle cx="26" cy="26" r="23"/><path d="M15 27l7 7 15-15"/>
+                            </svg>
+                            LOOKS SAFE
+                        </h2>
+                    {% endif %}
+
+                    {% if verdict.attack_type != "None" %}
+                        <span class="chip tag">{{ verdict.attack_type }}</span>
+                    {% endif %}
+                    <p>{{ verdict.reason }}</p>
+
+                    <div class="agreement">
+                        {% for s in analysis.scores %}
+                            <span class="run" title="Run {{ loop.index }}: {{ s }}%">
+                                <i style="height: {{ [s, 4]|max }}%"></i>
+                            </span>
+                        {% endfor %}
+                        <span class="muted small">
+                            {{ analysis.agreement }} of {{ analysis.scores|length }} independent AI runs agree
+                            ({{ analysis.scores|join("%, ") }}%)
+                        </span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Report & get help -->
+            {% if level != "safe" %}
+                <div class="card help level-{{ level }}">
+                    <div class="help-head">
+                        <span class="siren" aria-hidden="true"></span>
+                        <div>
+                            <h3>Report &amp; get help</h3>
+                            <p class="muted small">
+                                {% if level == "phishing" %}Don't click, reply or pay.{% else %}Verify before you act.{% endif %}
+                                Lost money? Call <strong>1930</strong> and your bank immediately.
+                            </p>
+                        </div>
+                    </div>
+                    <div class="help-grid">
+                        <a class="help-item primary-help" href="tel:1930">
+                            <span class="help-num">1930</span>
+                            <span><strong>National Cyber Crime Helpline</strong>24×7, toll-free. Call quickly if money was lost so it can be frozen.</span>
+                        </a>
+                        <a class="help-item" href="https://cybercrime.gov.in" target="_blank" rel="noopener">
+                            <span class="help-num small-num">cybercrime<br>.gov.in</span>
+                            <span><strong>Cyber Crime Reporting Portal</strong>File a complaint online with police.</span>
+                        </a>
+                        <a class="help-item" href="https://sancharsaathi.gov.in/sfc/" target="_blank" rel="noopener">
+                            <span class="help-num small-num">Chakshu</span>
+                            <span><strong>Sanchar Saathi</strong>Report fraud calls, SMS and WhatsApp messages.</span>
+                        </a>
+                        <a class="help-item" href="tel:112">
+                            <span class="help-num">112</span>
+                            <span><strong>Emergency (Police)</strong>If you are in immediate danger.</span>
+                        </a>
+                        <div class="help-item">
+                            <span class="help-num small-num">Bank</span>
+                            <span><strong>Your bank's official helpline</strong>Report unauthorised transactions and block cards at once.</span>
+                        </div>
+                        <a class="help-item" href="mailto:incident@cert-in.org.in">
+                            <span class="help-num small-num">CERT-In</span>
+                            <span><strong>incident@cert-in.org.in</strong>Report the phishing campaign · 1800-11-4949</span>
+                        </a>
+                        <a class="help-item" href="mailto:reportphishing@apwg.org">
+                            <span class="help-num small-num">APWG</span>
+                            <span><strong>reportphishing@apwg.org</strong>Forward the phishing email so it can be taken down.</span>
+                        </a>
+                    </div>
+                </div>
+            {% endif %}
+
+            <!-- Red flags -->
+            <div class="card">
+                <h3>🚩 Red flags <span class="count">{{ verdict.red_flags|length }}</span></h3>
+                {% if verdict.red_flags %}
+                    <ol class="flags">
+                        {% for flag in verdict.red_flags %}
+                            <li data-flag="{{ loop.index }}" style="--i: {{ loop.index0 }}">
+                                <span class="flag-num">{{ loop.index }}</span>
+                                <div>
+                                    <span class="chip tag">{{ flag.category }}</span>
+                                    <q>{{ flag.quote }}</q>
+                                    <p class="muted">{{ flag.explanation }}</p>
+                                </div>
+                            </li>
+                        {% endfor %}
+                    </ol>
+                {% else %}
+                    <p class="muted">No red flags found.</p>
+                {% endif %}
+            </div>
+
+            <!-- Highlighted email -->
+            <div class="card">
+                <h3>🔍 Email with highlights</h3>
+                <div class="email-view">{{ highlighted }}</div>
+            </div>
+
+            <div class="grid-2">
+                <div class="card">
+                    <h3>🧠 Persuasion techniques</h3>
+                    <p class="muted small">Cialdini's principles of influence</p>
+                    <div class="principles">
+                        {% for p in principles %}
+                            <span class="chip principle {{ 'on' if p in verdict.persuasion }}">{{ p }}</span>
+                        {% endfor %}
+                    </div>
+                </div>
+
+                <div class="card">
+                    <h3>✅ What to do next</h3>
+                    <ul class="advice">
+                        {% for step in verdict.advice %}
+                            <li>{{ step }}</li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            </div>
+
+            <!-- Links -->
+            <div class="card">
+                <h3>🔗 Link scanner <span class="count">{{ urls|length }}</span></h3>
+                <p class="muted small">Rule-based checks run locally before the AI analysis</p>
+                {% if urls %}
+                    <ul class="links">
+                        {% for item in urls %}
+                            <li class="{{ 'risky' if item.issues else 'clean' }}">
+                                <code>{{ item.url }}</code>
+                                <span class="muted small">Domain: {{ item.domain }}</span>
+                                {% if item.issues %}
+                                    <ul>
+                                        {% for issue in item.issues %}<li>{{ issue }}</li>{% endfor %}
+                                    </ul>
+                                {% else %}
+                                    <span class="ok">✓ No rule-based issues found</span>
+                                {% endif %}
+                            </li>
+                        {% endfor %}
+                    </ul>
+                {% else %}
+                    <p class="muted">No links found in this email.</p>
+                {% endif %}
+            </div>
+
+        {% elif not error %}
+
+            <div class="card how">
+                <h2>How JaalDrishti works</h2>
+                <ol class="steps">
+                    <li><span class="step-icon">📩</span><strong>Paste an email</strong><span>Any suspicious message, or try a sample.</span></li>
+                    <li><span class="step-icon">🔗</span><strong>Link scanner</strong><span>Rule-based checks flag IP hosts, look-alike domains, shorteners and risky TLDs.</span></li>
+                    <li><span class="step-icon">🤖</span><strong>Gemini AI &times; {{ runs }}</strong><span>Independent analyses are averaged; their agreement shows how reliable the score is.</span></li>
+                    <li><span class="step-icon">📊</span><strong>Explainable report</strong><span>Probability gauge, highlighted red flags, persuasion tactics and who to call for help.</span></li>
+                </ol>
+            </div>
+
+        {% endif %}
+        </div>
+    </section>
+
+</main>
+
+<footer class="footer">
+    <strong>JaalDrishti</strong> · Hybrid rule-based + LLM phishing detection
+    <br><span class="muted small">Results are AI estimates; always verify through official channels.</span>
+</footer>
+
+<script type="importmap">
+    { "imports": { "three": "{{ url_for('static', filename='vendor/three/three.module.min.js') }}" } }
+</script>
+<script type="module" src="{{ url_for('static', filename='js/hero3d.js') }}"></script>
+
+<script>
+    const samples = {{ samples|tojson }};
+    const textarea = document.getElementById("email");
+    const counter = document.getElementById("char-count");
+    const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+    function updateCount() {
+        counter.textContent = textarea.value.length.toLocaleString() + " / 20,000";
+    }
+    textarea.addEventListener("input", updateCount);
+    updateCount();
+
+    document.querySelectorAll(".sample").forEach(button => {
+        button.addEventListener("click", () => {
+            textarea.value = samples[button.dataset.index].text;
+            updateCount();
+            textarea.focus();
+        });
+    });
+
+    // Clear: empty the box and the previous report, ready for a new email
+    document.getElementById("clear-btn").addEventListener("click", () => {
+        if (document.querySelector(".verdict, .alert")) {
+            window.location.href = "/";
+            return;
+        }
+        textarea.value = "";
+        updateCount();
+        textarea.focus();
+    });
+
+    document.getElementById("paste-btn").addEventListener("click", async () => {
+        try {
+            textarea.value = await navigator.clipboard.readText();
+            updateCount();
+        } catch (e) {
+            textarea.focus();
+        }
+    });
+
+    // Scanning animation while the server works
+    document.getElementById("analyze-form").addEventListener("submit", () => {
+        const btn = document.getElementById("submit-btn");
+        btn.disabled = true;
+        btn.classList.add("loading");
+        btn.querySelector(".btn-label").textContent = "Scanning…";
+
+        document.getElementById("results-content").hidden = true;
+        document.getElementById("scan-text").textContent = textarea.value;
+        const scanning = document.getElementById("scanning");
+        scanning.hidden = false;
+        document.body.dataset.level = "scanning";
+
+        const steps = [...document.querySelectorAll("#stepper li")];
+        let i = 0;
+        steps[0].classList.add("active");
+        const timer = setInterval(() => {
+            if (i >= steps.length - 1) return clearInterval(timer);
+            steps[i].classList.replace("active", "done");
+            steps[++i].classList.add("active");
+        }, 1400);
+
+        if (innerWidth < 900) scanning.scrollIntoView({behavior: "smooth"});
+    });
+
+    // Count-up number in the gauge
+    document.querySelectorAll(".count-up").forEach(el => {
+        const target = +el.dataset.value;
+        if (reduceMotion) return;
+        const start = performance.now();
+        const tick = now => {
+            const t = Math.min((now - start) / 1300, 1);
+            el.textContent = Math.round(target * (1 - (1 - t) ** 3));
+            if (t < 1) requestAnimationFrame(tick);
+        };
+        requestAnimationFrame(tick);
+    });
+
+    // Bring the verdict into view after a scan
+    const verdictTitle = document.querySelector(".verdict-title");
+    if (verdictTitle) {
+        document.getElementById("workspace").scrollIntoView({behavior: reduceMotion ? "auto" : "smooth"});
+        verdictTitle.focus({preventScroll: true});
+    }
+
+    // Hovering a red flag highlights its phrase in the email, and vice versa
+    document.querySelectorAll("[data-flag]").forEach(el => {
+        const n = el.dataset.flag;
+        el.addEventListener("mouseenter", () =>
+            document.querySelectorAll(`[data-flag="${n}"]`).forEach(x => x.classList.add("active")));
+        el.addEventListener("mouseleave", () =>
+            document.querySelectorAll(`[data-flag="${n}"]`).forEach(x => x.classList.remove("active")));
+    });
+
+    // Light / dark theme
+    document.getElementById("theme-toggle").addEventListener("click", () => {
+        const root = document.documentElement;
+        const next = root.dataset.theme === "light" ? "dark" : "light";
+        root.dataset.theme = next;
+        try { localStorage.setItem("jd-theme", next); } catch (e) {}
+    });
+</script>
+
+</body>
+</html>

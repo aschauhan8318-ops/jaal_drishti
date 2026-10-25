@@ -1,0 +1,10 @@
+# Secrets - never commit your API key
+.env
+
+# Local environment and tooling
+venv/
+.venv/
+__pycache__/
+*.pyc
+.vscode/
+.vercel/
