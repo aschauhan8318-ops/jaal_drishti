@@ -20,8 +20,7 @@ cyber-crime helplines when a threat is found. No training dataset is required.
 
 ## Tech stack
 
-Python · Flask · Google Gemini API (`google-genai`) · Pydantic · HTML/CSS/JS ·
-Three.js (bundled locally for the 3D hero)
+Python · Flask · Google Gemini API (`google-genai`) · Pydantic · HTML/CSS/JS
 
 ## Project structure
 
@@ -30,7 +29,7 @@ app.py                    Flask app: routes, sample emails, phrase highlighting
 detector.py               Gemini prompt, response schema, 3-run self-consistency
 url_checks.py             Rule-based URL checks
 templates/index.html      Web page
-public/static/            CSS, JS and bundled three.js (served by Vercel's CDN)
+public/static/            CSS (served by Vercel's CDN)
 phishing_test_emails.md   80 phishing test emails (8 attack types × 10)
 vercel.json               Vercel function settings
 .env.example              Template for your API key

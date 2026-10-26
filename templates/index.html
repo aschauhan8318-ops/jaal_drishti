@@ -65,17 +65,6 @@
             <div><strong>100%</strong><span>explainable</span></div>
         </div>
     </div>
-    <div class="hero-visual">
-        <div class="orb" aria-hidden="true"></div>
-        <canvas id="hero-canvas" aria-label="3D visual of an email protected by a shield"></canvas>
-        <div class="hero-status">
-            {% if analysis %}
-                {% if analysis.level == "phishing" %}Threat detected
-                {% elif analysis.level == "suspicious" %}Proceed with caution
-                {% else %}Email looks safe{% endif %}
-            {% else %}Shield ready{% endif %}
-        </div>
-    </div>
 </section>
 
 <main class="layout" id="workspace">
@@ -340,10 +329,6 @@
     <br><span class="muted small">Results are AI estimates; always verify through official channels.</span>
 </footer>
 
-<script type="importmap">
-    { "imports": { "three": "{{ url_for('static', filename='vendor/three/three.module.min.js') }}" } }
-</script>
-<script type="module" src="{{ url_for('static', filename='js/hero3d.js') }}"></script>
 
 <script>
     const samples = {{ samples|tojson }};
