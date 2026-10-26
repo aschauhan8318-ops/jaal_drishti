@@ -84,6 +84,20 @@
         </div>
 
         <form id="analyze-form" action="/predict" method="POST">
+            <label class="field-label" for="sender">
+                Sender's email <span class="muted small">(optional — or include a "From:" line in the email)</span>
+            </label>
+            <input
+                type="text"
+                id="sender"
+                name="sender"
+                class="sender-input"
+                placeholder="e.g. SBI Security <alerts@sbi-secure.xyz>"
+                maxlength="320"
+                autocomplete="off"
+                value="{{ sender or '' }}"
+            >
+            <label class="field-label" for="email">Email content</label>
             <textarea
                 id="email"
                 name="email"
@@ -118,7 +132,7 @@
             <h2>Scanning email…</h2>
             <div class="scan-preview"><pre id="scan-text"></pre><span class="laser"></span></div>
             <ol class="stepper" id="stepper">
-                <li>Extracting links</li>
+                <li>Checking sender address &amp; extracting links</li>
                 <li>Checking domains with rule-based scanner</li>
                 <li>Gemini AI analysis &times; {{ runs }}</li>
                 <li>Building explainable report</li>
@@ -233,6 +247,42 @@
                 </div>
             {% endif %}
 
+            <!-- Sender -->
+            <div class="card">
+                <h3>📧 Sender analysis
+                    {% if sender_result %}
+                        <span class="risk-badge risk-{{ sender_result.risk }}">{{ sender_result.risk|upper }} RISK</span>
+                    {% endif %}
+                </h3>
+                {% if sender_result %}
+                    <div class="sender-box risk-{{ sender_result.risk }}">
+                        <div class="sender-id">
+                            {% if sender_result.display_name %}<strong>{{ sender_result.display_name }}</strong>{% endif %}
+                            <code>{{ sender_result.address }}</code>
+                        </div>
+                        <div class="sender-meta">
+                            {% if sender_result.domain %}<span class="chip">Domain: {{ sender_result.domain }}</span>{% endif %}
+                            <span class="chip">{{ sender_result.provider }}</span>
+                            <span class="chip">Sender {{ sender_result.source }}</span>
+                        </div>
+                        {% if sender_result.issues %}
+                            <ul class="sender-issues">
+                                {% for severity, message in sender_result.issues %}
+                                    <li class="sev-{{ severity }}"><span class="sev">{{ severity }}</span>{{ message }}</li>
+                                {% endfor %}
+                            </ul>
+                        {% else %}
+                            <span class="ok">✓ No rule-based issues found with this sender</span>
+                        {% endif %}
+                        {% for note in sender_result.notes %}
+                            <p class="muted small">ℹ️ {{ note }}</p>
+                        {% endfor %}
+                    </div>
+                {% else %}
+                    <p class="muted">No sender address provided. Add one above, or include a "From:" line in the email, to check it.</p>
+                {% endif %}
+            </div>
+
             <!-- Red flags -->
             <div class="card">
                 <h3>🚩 Red flags <span class="count">{{ verdict.red_flags|length }}</span></h3>
@@ -312,7 +362,7 @@
                 <h2>How JaalDrishti works</h2>
                 <ol class="steps">
                     <li><span class="step-icon">📩</span><strong>Paste an email</strong><span>Any suspicious message, or try a sample.</span></li>
-                    <li><span class="step-icon">🔗</span><strong>Link scanner</strong><span>Rule-based checks flag IP hosts, look-alike domains, shorteners and risky TLDs.</span></li>
+                    <li><span class="step-icon">🔗</span><strong>Sender &amp; link scanner</strong><span>Rule-based checks flag look-alike sender domains, fake brand names, free accounts posing as companies, and risky URLs.</span></li>
                     <li><span class="step-icon">🤖</span><strong>Gemini AI &times; {{ runs }}</strong><span>Independent analyses are averaged; their agreement shows how reliable the score is.</span></li>
                     <li><span class="step-icon">📊</span><strong>Explainable report</strong><span>Probability gauge, highlighted red flags, persuasion tactics and who to call for help.</span></li>
                 </ol>
@@ -333,6 +383,7 @@
 <script>
     const samples = {{ samples|tojson }};
     const textarea = document.getElementById("email");
+    const senderInput = document.getElementById("sender");
     const counter = document.getElementById("char-count");
     const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
 
@@ -345,6 +396,7 @@
     document.querySelectorAll(".sample").forEach(button => {
         button.addEventListener("click", () => {
             textarea.value = samples[button.dataset.index].text;
+            senderInput.value = samples[button.dataset.index].sender || "";
             updateCount();
             textarea.focus();
         });
@@ -357,8 +409,9 @@
             return;
         }
         textarea.value = "";
+        senderInput.value = "";
         updateCount();
-        textarea.focus();
+        senderInput.focus();
     });
 
     document.getElementById("paste-btn").addEventListener("click", async () => {
@@ -378,7 +431,8 @@
         btn.querySelector(".btn-label").textContent = "Scanning…";
 
         document.getElementById("results-content").hidden = true;
-        document.getElementById("scan-text").textContent = textarea.value;
+        document.getElementById("scan-text").textContent =
+            (senderInput.value ? "From: " + senderInput.value + "\n\n" : "") + textarea.value;
         const scanning = document.getElementById("scanning");
         scanning.hidden = false;
         document.body.dataset.level = "scanning";

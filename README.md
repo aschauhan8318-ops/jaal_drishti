@@ -7,13 +7,18 @@ cyber-crime helplines when a threat is found. No training dataset is required.
 
 ## How it works
 
-1. **Link scanner** (`url_checks.py`) – rule-based checks on every URL: raw IP hosts,
+1. **Sender analysis** (`sender_checks.py`) – checks the sender address (entered, or
+   taken from a `From:` line): look-alike domains (`paypa1.com`, `micros0ft-support.com`),
+   brand names on unofficial domains, display-name/domain mismatch, free or disposable
+   accounts posing as organisations or executives, risky TLDs, random-looking addresses,
+   a different `Reply-To`, and links that point away from the sender's domain.
+2. **Link scanner** (`url_checks.py`) – rule-based checks on every URL: raw IP hosts,
    risky TLDs, link shorteners, punycode, `@` tricks and look-alike brand domains.
-2. **Gemini analysis × 3** (`detector.py`) – the email and link findings are sent to
+3. **Gemini analysis × 3** (`detector.py`) – the email and link findings are sent to
    Gemini three times in parallel with a fixed JSON schema. The scores are averaged
    (self-consistency) and the agreement between runs is shown.
-3. **Verdict** – Safe (< 30), Suspicious (30–69), Phishing (≥ 70).
-4. **Explainable report** – phishing probability gauge, attack type, red flags with
+4. **Verdict** – Safe (< 30), Suspicious (30–69), Phishing (≥ 70).
+5. **Explainable report** – phishing probability gauge, attack type, red flags with
    the exact phrases highlighted in the email, Cialdini persuasion techniques,
    recommended next steps, and a "Report & get help" panel (1930,
    cybercrime.gov.in, Sanchar Saathi Chakshu, 112, CERT-In).
@@ -28,6 +33,7 @@ Python · Flask · Google Gemini API (`google-genai`) · Pydantic · HTML/CSS/JS
 app.py                    Flask app: routes, sample emails, phrase highlighting
 detector.py               Gemini prompt, response schema, 3-run self-consistency
 url_checks.py             Rule-based URL checks
+sender_checks.py          Rule-based sender address checks
 templates/index.html      Web page
 public/static/            CSS (served by Vercel's CDN)
 phishing_test_emails.md   80 phishing test emails (8 attack types × 10)

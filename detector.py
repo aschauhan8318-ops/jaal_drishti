@@ -12,8 +12,10 @@ the <email> tags is to be phishing.
 
 Look for signs such as urgency or threats, requests for passwords, OTPs or payment
 details, suspicious links or sender addresses, prize or reward bait, and impersonation
-of banks, companies or colleagues. The <link_checks> section contains results from
-automated rule-based URL checks; use them as evidence.
+of banks, companies or colleagues. The <sender_checks> and <link_checks> sections
+contain results from automated rule-based checks on the sender address and URLs; use
+them as evidence. A trustworthy-looking sender does not make a suspicious request safe,
+because sender addresses can be forged.
 
 For every red flag, copy the quote exactly as it appears in the email so it can be
 highlighted. A legitimate email may have no red flags.
@@ -104,12 +106,23 @@ def format_link_checks(url_results):
     return "\n".join(lines)
 
 
-def classify_email(client: genai.Client, model: str, email_text: str, url_results=()) -> Verdict:
+def format_sender_checks(sender):
+    if not sender:
+        return "No sender address provided."
+    lines = [f"Sender: {sender['raw']} ({sender['provider']})"]
+    lines += [f"- [{severity}] {message}" for severity, message in sender["issues"]]
+    if not sender["issues"]:
+        lines.append("- no rule-based issues")
+    return "\n".join(lines)
+
+
+def classify_email(client: genai.Client, model: str, email_text: str, url_results=(), sender=None) -> Verdict:
     interaction = client.interactions.create(
         model=model,
         system_instruction=SYSTEM_INSTRUCTION,
         input=(
             f"<email>\n{email_text}\n</email>\n\n"
+            f"<sender_checks>\n{format_sender_checks(sender)}\n</sender_checks>\n\n"
             f"<link_checks>\n{format_link_checks(url_results)}\n</link_checks>"
         ),
         response_format={
@@ -122,14 +135,14 @@ def classify_email(client: genai.Client, model: str, email_text: str, url_result
     return Verdict.model_validate_json(interaction.output_text)
 
 
-def analyze_email(client: genai.Client, model: str, email_text: str, url_results=()) -> Analysis:
+def analyze_email(client: genai.Client, model: str, email_text: str, url_results=(), sender=None) -> Analysis:
     """Run the classifier RUNS times in parallel and combine the results.
 
     Waits up to WAIT_ALL_SECONDS for every run; after that, uses whichever runs have
     finished so one slow request does not hold up the page.
     """
     pool = ThreadPoolExecutor(max_workers=RUNS)
-    futures = [pool.submit(classify_email, client, model, email_text, url_results) for _ in range(RUNS)]
+    futures = [pool.submit(classify_email, client, model, email_text, url_results, sender) for _ in range(RUNS)]
 
     wait(futures, timeout=WAIT_ALL_SECONDS)
     if not any(f.done() and f.exception() is None for f in futures):
